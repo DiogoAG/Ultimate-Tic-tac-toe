@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Tic Tac Toe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .x-icon {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: block;
+        }
+        .x-icon::before,
+        .x-icon::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 80%;
+            height: 2px;
+            background-color: #2563eb;
+            transform-origin: center;
+        }
+        .x-icon::before {
+            transform: translate(-50%, -50%) rotate(45deg);
+        }
+        .x-icon::after {
+            transform: translate(-50%, -50%) rotate(-45deg);
+        }
+        .x-icon-large {
+            width: 3rem;
+            height: 3rem;
+        }
+        .x-icon-large::before,
+        .x-icon-large::after {
+            height: 4px;
+        }
+        .o-icon {
+            width: 100%;
+            height: 100%;
+            border: 2px solid #dc2626;
+            border-radius: 50%;
+            box-sizing: border-box;
+            display: block;
+        }
+        .o-icon-large {
+            width: 3rem;
+            height: 3rem;
+            border-width: 4px;
+        }
+        
+        .small-board-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            width: 100%;
+            height: 100%;
+        }
+        
+        .cell-container {
+            aspect-ratio: 1/1;
+            position: relative;
+        }
+        
+        .cell-content {
+            position: absolute;
+            inset: 0;
+        }
+
+        @keyframes fadeIn { 
+            from { opacity: 0; } 
+            to { opacity: 1; } 
+        }
+        .animate-fadeIn { 
+            animation: fadeIn 0.15s ease-out; 
+        }
+
+        .mode-btn {
+            min-width: 120px;
+        }
+
+        .difficulty-container {
+            width: 120px;
+        }
+    </style>
+</head>
+<body class="h-screen bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden flex items-center justify-center p-2 sm:p-4">
+    <div class="w-full max-w-5xl flex flex-col">
+        <div class="text-center mb-2 flex-shrink-0">
+            <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-3">Ultimate Tic Tac Toe</h1>
+            
+            <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mb-2">
+                <div class="flex items-center gap-2" id="status">
+                    <!-- Status will be updated by JS -->
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <button
+                        id="mode-btn"
+                        class="mode-btn px-3 py-1.5 sm:px-4 sm:py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                    >
+                        VS Computer
+                    </button>
+                    
+                    <div class="difficulty-container">
+                        <select
+                            id="difficulty"
+                            class="w-full px-2 py-1.5 sm:px-3 sm:py-2 bg-white border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 cursor-pointer"
+                            style="visibility: hidden;"
+                        >
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                            <option value="expert">Expert</option>
+                        </select>
+                    </div>
+                    
+                    <button
+                        id="reset-btn"
+                        class="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 text-sm"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                            <path d="M8 16H3v5"/>
+                        </svg>
+                        New Game
+                    </button>
+                </div>
+            </div>
+            
+            <p id="board-hint" class="text-xs sm:text-sm font-medium h-5">
+                <!-- Hint will be updated by JS -->
+            </p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-2xl p-2 sm:p-3 md:p-4 flex-1 flex items-center justify-center" style="min-height: 0;">
+            <div class="w-full flex items-center justify-center">
+                <div id="game-board" class="grid grid-cols-3 gap-1.5 sm:gap-2 md:gap-3 w-full" style="max-width: min(100%, 90vh - 8rem); max-height: min(100%, 90vh - 8rem); aspect-ratio: 1/1;">
+                    <!-- Boards will be generated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /* -------------------------
+    Core game state (unchanged)
+    ------------------------- */
+    let boards = Array(9).fill(null).map(() => Array(9).fill(null));
+    let bigBoard = Array(9).fill(null);
+    let currentPlayer = 'X';
+    let nextBoard = null;
+    let winner = null;
+    let winningLines = {};
+    let bigWinningLine = null;
+    let vsComputer = false;
+    let difficulty = 'medium';
+    let isComputerThinking = false;
+
+    /* ---------- storage / UI load/save (unchanged) ---------- */
+    function loadGame() {
+        const saved = localStorage.getItem('ultimateTicTacToe');
+        if (saved) {
+            const state = JSON.parse(saved);
+            boards = state.boards;
+            bigBoard = state.bigBoard;
+            currentPlayer = state.currentPlayer;
+            nextBoard = state.nextBoard;
+            winner = state.winner;
+            winningLines = state.winningLines || {};
+            bigWinningLine = state.bigWinningLine || null;
+            vsComputer = state.vsComputer || false;
+            difficulty = state.difficulty || 'medium';
+        }
+        updateModeUI();
+    }
+    function saveGame() {
+        const state = {
+            boards,
+            bigBoard,
+            currentPlayer,
+            nextBoard,
+            winner,
+            winningLines,
+            bigWinningLine,
+            vsComputer,
+            difficulty
+        };
+        localStorage.setItem('ultimateTicTacToe', JSON.stringify(state));
+    }
+
+    /* ---------- helpers (mostly same as yours) ---------- */
+    function checkWinner(board) {
+        const lines = [
+            [0,1,2],[3,4,5],[6,7,8],
+            [0,3,6],[1,4,7],[2,5,8],
+            [0,4,8],[2,4,6]
+        ];
+        for (let line of lines) {
+            const [a,b,c] = line;
+            if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                return { winner: board[a], line };
+            }
+        }
+        if (board.every(cell => cell !== null)) return { winner: 'Draw', line: null };
+        return null;
+    }
+    function getValidMoves() {
+        const moves = [];
+        if (nextBoard !== null) {
+            if (!bigBoard[nextBoard]) {
+                for (let cellIdx = 0; cellIdx < 9; cellIdx++) {
+                    if (!boards[nextBoard][cellIdx]) moves.push({ boardIdx: nextBoard, cellIdx });
+                }
+            }
+        } else {
+            for (let boardIdx = 0; boardIdx < 9; boardIdx++) {
+                if (!bigBoard[boardIdx]) {
+                    for (let cellIdx = 0; cellIdx < 9; cellIdx++) {
+                        if (!boards[boardIdx][cellIdx]) moves.push({ boardIdx, cellIdx });
+                    }
+                }
+            }
+        }
+        return moves;
+    }
+
+    /* -------------------------
+    Evaluation function (same idea, reused)
+    ------------------------- */
+    function evaluatePositionLocal(brd = boards, bBig = bigBoard) {
+        // This mirrors your heuristic but as a function that accepts arbitrary states
+        // Map 'Draw' stored values to null for checkWinner compatibility
+        const bigSnapshot = bBig.map(cell => cell === 'Draw' ? null : cell);
+        const bigWin = checkWinner(bigSnapshot);
+        if (bigWin) {
+            if (bigWin.winner === 'O') return 100000;
+            if (bigWin.winner === 'X') return -100000;
+            return 0;
+        }
+        let score = 0;
+        for (let i=0;i<9;i++){
+            if (bBig[i] === 'O') score += 100;
+            else if (bBig[i] === 'X') score -= 100;
+        }
+        const strategicBig = [4,0,2,6,8];
+        for (let pos of strategicBig) {
+            if (bBig[pos] === 'O') score += 20;
+            else if (bBig[pos] === 'X') score -= 20;
+        }
+        const lines = [
+            [0,1,2],[3,4,5],[6,7,8],
+            [0,3,6],[1,4,7],[2,5,8],
+            [0,4,8],[2,4,6]
+        ];
+        for (let line of lines) {
+            const [a,b,c] = line;
+            const cells = [bBig[a], bBig[b], bBig[c]].filter(x => x !== 'Draw');
+            const oCount = cells.filter(x => x === 'O').length;
+            const xCount = cells.filter(x => x === 'X').length;
+            if (oCount > 0 && xCount === 0) score += oCount*oCount*10;
+            if (xCount > 0 && oCount === 0) score -= xCount*xCount*10;
+        }
+        // small-board heuristics
+        for (let boardIdx = 0; boardIdx < 9; boardIdx++) {
+            if (bBig[boardIdx]) continue;
+            for (let line of lines) {
+                const [a,b,c] = line;
+                const cells = [brd[boardIdx][a], brd[boardIdx][b], brd[boardIdx][c]];
+                const oCount = cells.filter(x => x === 'O').length;
+                const xCount = cells.filter(x => x === 'X').length;
+                if (oCount > 0 && xCount === 0) score += oCount*2;
+                if (xCount > 0 && oCount === 0) score -= xCount*2;
+            }
+        }
+        return score;
+    }
+
+    /* -------------------------
+    Fix minimax signature (critical)
+    ------------------------- */
+    function minimax(depth, alpha, beta, isMaximizing, player) {
+        // base: evaluate current entire position (use local copies)
+        const snapshotBig = bigBoard.map(cell => cell === 'Draw' ? null : cell);
+        const bigWin = checkWinner(snapshotBig);
+        if (depth === 0 || bigWin || winner) {
+            return evaluatePositionLocal(boards, bigBoard);
+        }
+        const moves = getValidMoves();
+        if (moves.length === 0) return evaluatePositionLocal(boards, bigBoard);
+
+        if (isMaximizing) {
+            let maxEval = -Infinity;
+            for (let move of moves) {
+                // apply move
+                const oldCell = boards[move.boardIdx][move.cellIdx];
+                const oldBig = bigBoard[move.boardIdx];
+                const oldNext = nextBoard;
+                const oldWinner = winner;
+                const oldCurrent = currentPlayer;
+
+                boards[move.boardIdx][move.cellIdx] = player;
+                const res = checkWinner(boards[move.boardIdx]);
+                if (res) bigBoard[move.boardIdx] = res.winner;
+                nextBoard = bigBoard[move.cellIdx] ? null : move.cellIdx;
+                currentPlayer = (player === 'X') ? 'O' : 'X';
+                const evalScore = minimax(depth-1, alpha, beta, false, currentPlayer);
+                // undo
+                boards[move.boardIdx][move.cellIdx] = oldCell;
+                bigBoard[move.boardIdx] = oldBig;
+                nextBoard = oldNext;
+                winner = oldWinner;
+                currentPlayer = oldCurrent;
+
+                maxEval = Math.max(maxEval, evalScore);
+                alpha = Math.max(alpha, evalScore);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (let move of moves) {
+                const oldCell = boards[move.boardIdx][move.cellIdx];
+                const oldBig = bigBoard[move.boardIdx];
+                const oldNext = nextBoard;
+                const oldWinner = winner;
+                const oldCurrent = currentPlayer;
+
+                boards[move.boardIdx][move.cellIdx] = player;
+                const res = checkWinner(boards[move.boardIdx]);
+                if (res) bigBoard[move.boardIdx] = res.winner;
+                nextBoard = bigBoard[move.cellIdx] ? null : move.cellIdx;
+                currentPlayer = (player === 'X') ? 'O' : 'X';
+                const evalScore = minimax(depth-1, alpha, beta, true, currentPlayer);
+
+                boards[move.boardIdx][move.cellIdx] = oldCell;
+                bigBoard[move.boardIdx] = oldBig;
+                nextBoard = oldNext;
+                winner = oldWinner;
+                currentPlayer = oldCurrent;
+
+                minEval = Math.min(minEval, evalScore);
+                beta = Math.min(beta, evalScore);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    /* -------------------------
+    Transposition table (simple)
+    ------------------------- */
+    // Lightweight hashing for state caching
+    function simpleHashState(brd, bBig, nextB, curPlayer) {
+        // create a short string key — acceptable for JS Map
+        return JSON.stringify({b: brd, B: bBig, n: nextB, p: curPlayer});
+    }
+    const transposition = new Map();
+
+    /* -------------------------
+    MCTS implementation (lightweight)
+    ------------------------- */
+    class MCTSNode {
+        constructor(parent=null, move=null, state=null) {
+            this.parent = parent;
+            this.move = move; // move that led to this node {boardIdx,cellIdx}
+            this.children = [];
+            this.wins = 0;
+            this.visits = 0;
+            this.untriedMoves = state ? state.getMoves() : [];
+            this.playerJustMoved = state ? state.playerJustMoved : null; // who moved to get here
+            this.state = state; // reference to State object (lightweight copy)
+        }
+    }
+
+    class State {
+        constructor(boardsState, bigState, nextB, currentP) {
+            // deep copy small arrays
+            this.boards = boardsState.map(b => b.slice());
+            this.bigBoard = bigState.slice();
+            this.nextBoard = nextB;
+            this.currentPlayer = currentP;
+            this.winner = null;
+        }
+        clone() {
+            return new State(this.boards.map(b => b.slice()), this.bigBoard.slice(), this.nextBoard, this.currentPlayer);
+        }
+        getMoves() {
+            const moves = [];
+            if (this.nextBoard !== null) {
+                if (!this.bigBoard[this.nextBoard]) {
+                    for (let cellIdx = 0; cellIdx < 9; cellIdx++) {
+                        if (!this.boards[this.nextBoard][cellIdx]) moves.push({boardIdx: this.nextBoard, cellIdx});
+                    }
+                }
+            } else {
+                for (let boardIdx = 0; boardIdx < 9; boardIdx++) {
+                    if (!this.bigBoard[boardIdx]) {
+                        for (let cellIdx = 0; cellIdx < 9; cellIdx++) {
+                            if (!this.boards[boardIdx][cellIdx]) moves.push({boardIdx, cellIdx});
+                        }
+                    }
+                }
+            }
+            return moves;
+        }
+        doMove(move) {
+            this.boards[move.boardIdx][move.cellIdx] = this.currentPlayer;
+            const res = checkWinner(this.boards[move.boardIdx]);
+            if (res) this.bigBoard[move.boardIdx] = res.winner;
+            this.nextBoard = this.bigBoard[move.cellIdx] ? null : move.cellIdx;
+            // update player
+            this.currentPlayer = this.currentPlayer === 'X' ? 'O' : 'X';
+            // check game over
+            const bigSnapshot = this.bigBoard.map(cell => cell === 'Draw' ? null : cell);
+            const gw = checkWinner(bigSnapshot);
+            if (gw) {
+                this.winner = gw.winner;
+            }
+        }
+        getResult(forPlayer) {
+            // return 1 for O win, 0 for draw, -1 for X win, relative to forPlayer
+            const bigSnapshot = this.bigBoard.map(cell => cell === 'Draw' ? null : cell);
+            const gw = checkWinner(bigSnapshot);
+            if (!gw) return null;
+            if (gw.winner === 'O') return (forPlayer === 'O') ? 1 : -1;
+            if (gw.winner === 'X') return (forPlayer === 'X') ? 1 : -1;
+            return 0;
+        }
+    }
+
+    /* UCT constant */
+    const UCT_C = Math.sqrt(2);
+
+    /* Default rollout policy: biased random using heuristic */
+    function rolloutPolicy(state) {
+        const moves = state.getMoves();
+        if (moves.length === 0) return null;
+        // score moves by a quick heuristic: prefer moves that win the small board or send opponent to bad board
+        const scored = moves.map(m => {
+            // shallow test: does this move finish a small board?
+            const testBoard = state.boards[m.boardIdx].slice();
+            testBoard[m.cellIdx] = state.currentPlayer;
+            const res = checkWinner(testBoard);
+            let score = 0;
+            if (res && res.winner === state.currentPlayer) score += 50;
+            // prefer center of small board
+            if (m.cellIdx === 4) score += 5;
+            // prefer sending opponent to board that is playable and not near win (naive)
+            const sendTo = m.cellIdx;
+            if (state.bigBoard[sendTo] === null) score += 2;
+            return {m, score};
+        });
+        scored.sort((a,b)=>b.score-a.score);
+        // return one of top choices with some randomness
+        const top = scored.slice(0, Math.max(1, Math.floor(scored.length*0.3)));
+        return top[Math.floor(Math.random()*top.length)].m;
+    }
+
+    /* Simulate to the end or to some playout depth */
+    function simulateRandomPlayout(simState, maxPlayoutDepth = 50) {
+        let depth = 0;
+        while (true) {
+            const bigSnapshot = simState.bigBoard.map(cell => cell === 'Draw' ? null : cell);
+            const gw = checkWinner(bigSnapshot);
+            if (gw) {
+                if (gw.winner === 'O') return 1;
+                if (gw.winner === 'X') return -1;
+                return 0;
+            }
+            const moves = simState.getMoves();
+            if (moves.length === 0) return 0;
+            const move = rolloutPolicy(simState) || moves[Math.floor(Math.random()*moves.length)];
+            simState.doMove(move);
+            depth++;
+            if (depth >= maxPlayoutDepth) {
+                // fallback to heuristic evaluation if playout truncated
+                const evalv = evaluatePositionLocal(simState.boards, simState.bigBoard);
+                return Math.sign(evalv);
+            }
+        }
+    }
+
+    /* MCTS main function — returns best move */
+    function runMCTS(rootState, iterations = 600) {
+        const rootNode = new MCTSNode(null, null, rootState.clone());
+        // If only one move, return it immediately
+        const rootMoves = rootState.getMoves();
+        if (rootMoves.length === 0) return null;
+        if (rootMoves.length === 1) return rootMoves[0];
+
+        for (let i=0;i<iterations;i++) {
+            // Selection
+            let node = rootNode;
+            const stateCopy = rootState.clone();
+
+            // Select
+            while (node.untriedMoves.length === 0 && node.children.length > 0) {
+                // pick child with highest UCT
+                let bestUct = -Infinity;
+                let bestChild = null;
+                for (let child of node.children) {
+                    const uct = (child.wins/ (child.visits || 1)) + UCT_C * Math.sqrt(Math.log(node.visits + 1) / (child.visits + 1));
+                    if (uct > bestUct) {
+                        bestUct = uct;
+                        bestChild = child;
+                    }
+                }
+                if (!bestChild) break;
+                node = bestChild;
+                // apply move to state copy
+                if (node.move) stateCopy.doMove(node.move);
+            }
+
+            // Expansion
+            if (node.untriedMoves.length > 0) {
+                // pick random untried move and add child
+                const idx = Math.floor(Math.random() * node.untriedMoves.length);
+                const m = node.untriedMoves.splice(idx,1)[0];
+                stateCopy.doMove(m);
+                const childNode = new MCTSNode(node, m, stateCopy.clone());
+                node.children.push(childNode);
+                node = childNode;
+            }
+
+            // Simulation
+            const simState = stateCopy.clone();
+            const result = simulateRandomPlayout(simState); // 1 = O, -1 = X, 0 draw
+
+            // Backpropagate result as wins for O
+            let cur = node;
+            while (cur) {
+                cur.visits += 1;
+                // if result is from POV of 'O' (AI) we add wins accordingly
+                if (result === 1) cur.wins += 1;
+                else if (result === 0) cur.wins += 0.5;
+                // if result is -1, wins unchanged (counts as loss)
+                cur = cur.parent;
+            }
+        }
+
+        // choose child with highest visit count
+        let best = null;
+        let bestVisits = -Infinity;
+        for (let child of rootNode.children) {
+            if (child.visits > bestVisits) {
+                bestVisits = child.visits;
+                best = child;
+            }
+        }
+        return best ? best.move : rootMoves[0];
+    }
+
+    /* -------------------------
+    Integrate with findBestMove: hybrid
+    ------------------------- */
+    function findBestMove(validMoves) {
+        // Immediate win on big board (unchanged)
+        for (let move of validMoves) {
+            const testBoard = [...boards[move.boardIdx]];
+            testBoard[move.cellIdx] = 'O';
+            const result = checkWinner(testBoard);
+            if (result && result.winner === 'O') {
+                const testBig = [...bigBoard];
+                testBig[move.boardIdx] = 'O';
+                const gameResult = checkWinner(testBig.map(cell => cell === 'Draw' ? null : cell));
+                if (gameResult && gameResult.winner === 'O') return move;
+            }
+        }
+        // Block immediate opponent win (unchanged)
+        for (let move of validMoves) {
+            const testBoard = [...boards[move.boardIdx]];
+            testBoard[move.cellIdx] = 'X';
+            const result = checkWinner(testBoard);
+            if (result && result.winner === 'X') {
+                const testBig = [...bigBoard];
+                testBig[move.boardIdx] = 'X';
+                const gameResult = checkWinner(testBig.map(cell => cell === 'Draw' ? null : cell));
+                if (gameResult && gameResult.winner === 'X') return move;
+            }
+        }
+
+        // If difficulty is expert -> use MCTS hybrid
+        if (difficulty === 'expert') {
+            // Build root State from current global state
+            const rootState = new State(boards.map(b=>b.slice()), bigBoard.slice(), nextBoard, currentPlayer);
+            // Choose MCTS iterations based on how many empty cells (fewer cells => we can do more iterations)
+            const emptyCells = boards.flat().filter(c => c === null).length;
+            let iters = 600;
+            if (emptyCells < 40) iters = 1200;
+            if (emptyCells < 20) iters = 2500;
+            // Bound iters to avoid freezing (adjust to taste)
+            iters = Math.min(iters, 3000);
+
+            const mctsMove = runMCTS(rootState, iters);
+            if (!mctsMove) return validMoves[0];
+
+            // After MCTS returns a candidate, optionally refine among top few moves via minimax
+            // We'll score a small set: the MCTS move + a few random other good moves
+            const candidates = [mctsMove];
+            // fill candidates with other moves that are different
+            for (let mv of validMoves) {
+                if (candidates.length >= 3) break;
+                if (mv.boardIdx === mctsMove.boardIdx && mv.cellIdx === mctsMove.cellIdx) continue;
+                candidates.push(mv);
+            }
+
+            let bestMove = null;
+            let bestScore = -Infinity;
+            for (let cand of candidates) {
+                const oldCell = boards[cand.boardIdx][cand.cellIdx];
+                const oldBig = bigBoard[cand.boardIdx];
+                const oldNext = nextBoard;
+                const oldWinner = winner;
+                const oldCurr = currentPlayer;
+
+                boards[cand.boardIdx][cand.cellIdx] = 'O';
+                const res = checkWinner(boards[cand.boardIdx]);
+                if (res) bigBoard[cand.boardIdx] = res.winner;
+                nextBoard = bigBoard[cand.cellIdx] ? null : cand.cellIdx;
+                currentPlayer = 'X';
+                // minimax deeper for candidate
+                const score = minimax(4, -Infinity, Infinity, false, 'X'); // note: player param flips each call
+                // undo
+                boards[cand.boardIdx][cand.cellIdx] = oldCell;
+                bigBoard[cand.boardIdx] = oldBig;
+                nextBoard = oldNext;
+                winner = oldWinner;
+                currentPlayer = oldCurr;
+
+                if (score > bestScore) { bestScore = score; bestMove = cand; }
+            }
+            return bestMove || mctsMove;
+        }
+
+        // Non-expert path (hard/medium/easy): use existing strategy
+        // Use minimax-based scoring for hard
+        let bestMove = null;
+        let bestScore = -Infinity;
+        const totalMoves = boards.flat().filter(c=>c!==null).length;
+        let depth = totalMoves < 20 ? 3 : totalMoves < 40 ? 2 : 1;
+
+        const scoredMoves = validMoves.map(move => {
+            const oldCell = boards[move.boardIdx][move.cellIdx];
+            const oldBig = bigBoard[move.boardIdx];
+            const oldNextBoard = nextBoard;
+            const oldWinner = winner;
+
+            boards[move.boardIdx][move.cellIdx] = 'O';
+            const result = checkWinner(boards[move.boardIdx]);
+            if (result) {
+                bigBoard[move.boardIdx] = result.winner;
+                const gameResult = checkWinner(bigBoard.map(cell => cell === 'Draw' ? null : cell));
+                if (gameResult) winner = gameResult.winner;
+            }
+            nextBoard = bigBoard[move.cellIdx] ? null : move.cellIdx;
+
+            const score = minimax(depth, -Infinity, Infinity, false, 'X');
+
+            boards[move.boardIdx][move.cellIdx] = oldCell;
+            bigBoard[move.boardIdx] = oldBig;
+            nextBoard = oldNextBoard;
+            winner = oldWinner;
+
+            return { move, score };
+        });
+        scoredMoves.sort((a,b)=>b.score - a.score);
+        bestMove = scoredMoves[0].move;
+        if (Math.random() < 0.1 && scoredMoves.length > 1) {
+            bestMove = scoredMoves[Math.random() < 0.5 ? 0 : 1].move;
+        }
+        return bestMove || validMoves[0];
+    }
+
+    /* -------------------------
+    Computer move as before, using difficulty variable
+    ------------------------- */
+    function computerMove() {
+        if (winner) return;
+        isComputerThinking = true;
+        render();
+
+        const validMoves = getValidMoves();
+        if (validMoves.length === 0) return;
+
+        let move;
+        if (difficulty === 'easy') {
+            move = validMoves[Math.floor(Math.random() * validMoves.length)];
+        } else if (difficulty === 'medium') {
+            if (Math.random() < 0.5) move = findBestMove(validMoves);
+            else move = validMoves[Math.floor(Math.random() * validMoves.length)];
+        } else if (difficulty === 'hard') {
+            move = findBestMove(validMoves);
+        } else if (difficulty === 'expert') {
+            move = findBestMove(validMoves); // this now triggers MCTS hybrid
+        } else {
+            move = findBestMove(validMoves);
+        }
+
+        isComputerThinking = false;
+        makeMove(move.boardIdx, move.cellIdx);
+    }
+
+    /* -------------------------
+    Make move, handle UI (unchanged)
+    ------------------------- */
+    function makeMove(boardIdx, cellIdx) {
+        boards[boardIdx][cellIdx] = currentPlayer;
+
+        const result = checkWinner(boards[boardIdx]);
+        if (result) {
+            bigBoard[boardIdx] = result.winner;
+
+            if (result.line) {
+                winningLines[boardIdx] = result.line;
+            }
+
+            const gameResult = checkWinner(bigBoard.map(cell => cell === 'Draw' ? null : cell));
+            if (gameResult) {
+                winner = gameResult.winner;
+                if (gameResult.line) bigWinningLine = gameResult.line;
+                saveGame();
+                render();
+                return;
+            }
+        }
+
+        nextBoard = bigBoard[cellIdx] ? null : cellIdx;
+        currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+
+        saveGame();
+        render();
+
+        if (vsComputer && currentPlayer === 'O' && !winner) {
+            // small delay so UI updates; adjust if needed
+            setTimeout(computerMove, 500);
+        }
+    }
+
+    /* user interactions, reset, toggle mode, update UI (unchanged except added expert option) */
+    function isGameEmpty() {
+        return boards.every(b => b.every(c => c === null)) && bigBoard.every(b => b === null);
+    }
+    function showConfirmModal(message, onConfirm) {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 animate-fadeIn';
+        modal.innerHTML = `
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-80 text-center">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">${message}</h2>
+                <p class="text-sm text-gray-600 mb-6">Your current progress will be lost.</p>
+                <div class="flex justify-center gap-3">
+                    <button id="confirm-yes" class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">Yes</button>
+                    <button id="confirm-no" class="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium">Cancel</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('confirm-yes').onclick = () => { modal.remove(); onConfirm(); };
+        document.getElementById('confirm-no').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    }
+
+    function reset() {
+        boards = Array(9).fill(null).map(() => Array(9).fill(null));
+        bigBoard = Array(9).fill(null);
+        currentPlayer = 'X';
+        nextBoard = null;
+        winner = null;
+        winningLines = {};
+        bigWinningLine = null;
+        isComputerThinking = false;
+        saveGame();
+        render();
+    }
+
+    function toggleMode() {
+        const action = () => {
+            vsComputer = !vsComputer;
+            updateModeUI();
+            reset();
+        };
+        if (!isGameEmpty()) {
+            showConfirmModal('Switch game mode?', action);
+        } else action();
+    }
+
+    function updateModeUI() {
+        const modeBtn = document.getElementById('mode-btn');
+        const difficultySelect = document.getElementById('difficulty');
+        if (vsComputer) {
+            modeBtn.textContent = 'VS Player';
+            modeBtn.classList.remove('bg-purple-600','hover:bg-purple-700');
+            modeBtn.classList.add('bg-green-600','hover:bg-green-700');
+            difficultySelect.style.visibility = 'visible';
+        } else {
+            modeBtn.textContent = 'VS Computer';
+            modeBtn.classList.remove('bg-green-600','hover:bg-green-700');
+            modeBtn.classList.add('bg-purple-600','hover:bg-purple-700');
+            difficultySelect.style.visibility = 'hidden';
+        }
+        difficultySelect.value = difficulty;
+    }
+
+    /* Render helpers (icons etc. unchanged) */
+    function renderIcon(player, large=false) {
+        if (player === 'X') return `<div class="x-icon ${large ? 'x-icon-large' : ''}"></div>`;
+        if (player === 'O') return `<div class="o-icon ${large ? 'o-icon-large' : ''}"></div>`;
+        return '';
+    }
+
+    function render() {
+        const gameBoard = document.getElementById('game-board');
+        gameBoard.innerHTML = '';
+        for (let boardIdx = 0; boardIdx < 9; boardIdx++) {
+            const board = boards[boardIdx];
+            const boardWinner = bigBoard[boardIdx];
+            const isActive = nextBoard === null || nextBoard === boardIdx;
+            const isWon = boardWinner !== null;
+            const isWinningBoard = bigWinningLine && bigWinningLine.includes(boardIdx);
+
+            let borderColor = 'border-gray-300';
+            if (isActive && !isWon) borderColor = currentPlayer === 'X' ? 'border-blue-500' : 'border-red-500';
+            if (isWinningBoard) borderColor = 'border-yellow-400';
+
+            const boardDiv = document.createElement('div');
+            boardDiv.className = `relative bg-white rounded-md sm:rounded-lg p-1 transition-all border-2 sm:border-4 ${borderColor} ${isWon ? 'bg-gray-50' : ''} ${isWinningBoard ? 'bg-yellow-100 shadow-xl' : ''}`;
+            boardDiv.style.aspectRatio = '1/1';
+
+            if (isWon) {
+                const overlay = document.createElement('div');
+                overlay.className = 'absolute inset-0 flex items-center justify-center z-10 bg-white bg-opacity-90 rounded-md sm:rounded-lg';
+                if (boardWinner === 'Draw') overlay.innerHTML = '<span class="text-2xl sm:text-4xl md:text-5xl font-bold text-gray-400">−</span>';
+                else overlay.innerHTML = `<div class="flex items-center justify-center">${renderIcon(boardWinner, true)}</div>`;
+                boardDiv.appendChild(overlay);
+            }
+
+            const gridDiv = document.createElement('div');
+            gridDiv.className = 'small-board-grid gap-0.5 sm:gap-1';
+
+            for (let cellIdx = 0; cellIdx < 9; cellIdx++) {
+                const cell = board[cellIdx];
+                const cellWrapper = document.createElement('div');
+                cellWrapper.className = 'cell-container bg-gray-50 rounded border border-gray-200';
+                const isDisabled = winner || bigBoard[boardIdx] || (nextBoard !== null && nextBoard !== boardIdx);
+                const button = document.createElement('button');
+                button.className = `cell-content flex items-center justify-center transition-all ${!isDisabled && !cell ? 'hover:bg-gray-100 cursor-pointer' : ''} ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`;
+                button.disabled = isDisabled || cell !== null;
+                button.onclick = () => handleCellClick(boardIdx, cellIdx);
+
+                const iconDiv = document.createElement('div');
+                iconDiv.className = 'flex items-center justify-center';
+                iconDiv.style.width = '70%';
+                iconDiv.style.height = '70%';
+                if (cell) iconDiv.innerHTML = renderIcon(cell);
+                button.appendChild(iconDiv);
+                cellWrapper.appendChild(button);
+                gridDiv.appendChild(cellWrapper);
+            }
+
+            boardDiv.appendChild(gridDiv);
+            gameBoard.appendChild(boardDiv);
+        }
+
+        // status
+        const status = document.getElementById('status');
+        if (winner) {
+            const winnerIcon = winner === 'Draw' ? '' : renderIcon(winner);
+            status.innerHTML = `
+                ${winnerIcon ? `<div class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center">${winnerIcon}</div>` : ''}
+                <span class="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">
+                    ${winner === 'Draw' ? "It's a draw!" : 'wins!'}
+                </span>
+            `;
+        } else {
+            const playerIcon = renderIcon(currentPlayer);
+            status.innerHTML = `
+                <span class="text-base sm:text-lg md:text-xl font-medium text-gray-700">Current Player:</span>
+                <div class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center">${playerIcon}</div>
+            `;
+        }
+
+        // hint
+        const hint = document.getElementById('board-hint');
+        if (nextBoard === null && !winner) {
+            hint.textContent = 'Play in any available board';
+            hint.style.color = currentPlayer === 'X' ? '#2563eb' : '#dc2626';
+        } else {
+            hint.textContent = '';
+        }
+    }
+
+    /* event wiring */
+    document.getElementById('reset-btn').onclick = () => {
+        if (!isGameEmpty()) showConfirmModal('Start a new game?', reset);
+        else reset();
+    };
+    document.getElementById('mode-btn').onclick = toggleMode;
+    document.getElementById('difficulty').onchange = (e) => {
+        difficulty = e.target.value;
+        saveGame();
+    };
+
+    function handleCellClick(boardIdx, cellIdx) {
+        if (winner || isComputerThinking) return; // stop if game ended or AI thinking
+        if (boards[boardIdx][cellIdx] !== null) return; // cell taken
+        if (nextBoard !== null && nextBoard !== boardIdx) return; // not allowed board
+
+        makeMove(boardIdx, cellIdx);
+    }
+
+
+    loadGame();
+    render();
+
+    </script>
+
+</body>
+</html>
